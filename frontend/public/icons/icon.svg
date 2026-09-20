@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="My Trackers">
+  <rect width="512" height="512" rx="112" fill="#3B4BDB"/>
+  <rect x="110" y="122" width="292" height="268" rx="42" fill="#FFFFFF"/>
+  <path d="M160 194h192" stroke="#141B34" stroke-width="28" stroke-linecap="round"/>
+  <path d="M160 256h118" stroke="#0E9F8E" stroke-width="28" stroke-linecap="round"/>
+  <path d="M160 318h156" stroke="#E0662B" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="354" cy="318" r="22" fill="#B83280"/>
+</svg>
