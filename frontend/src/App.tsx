@@ -403,24 +403,23 @@ export default function App() {
         )}
       </main>
 
-      <div className="fabwrap">
-        <div className="fabin">
-          <button
-            className="fab"
-            type="button"
-            onClick={() => {
-              if (view === "home" || !tracker) openBuilder();
-              else {
+      {view === "tracker" && tracker && (
+        <div className="fabwrap">
+          <div className="fabin">
+            <button
+              className="fab"
+              type="button"
+              onClick={() => {
                 setEntryDraft({ at: localDateTime(new Date()), data: {}, error: "" });
                 setSheet("entry");
-              }
-            }}
-          >
-            <span className="p" aria-hidden="true">+</span>
-            {view === "home" || !tracker ? "New tracker" : "Add entry"}
-          </button>
+              }}
+            >
+              <span className="p" aria-hidden="true">+</span>
+              Add entry
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {sheet && (
         <div className="backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSheet(null)}>
@@ -579,16 +578,22 @@ function Home({ trackers, entriesOf, summary, onOpen, onNew, onSignOut }: {
           <h2>Overview</h2>
           <p>{summary}</p>
         </div>
-        <button className="ghost" type="button" onClick={onNew}>+ New tracker</button>
       </div>
 
       {!trackers.length ? (
-        <div className="empty">No trackers created yet. Click <strong>+ New tracker</strong> to get started.</div>
+        <div className="empty">No trackers created yet. Click <strong>+ New tracker</strong> below to get started.</div>
       ) : null}
 
       <div className="grid">
         {trackers.map((tracker) => {
-          const count = entriesOf(tracker.id).length;
+          const entries = entriesOf(tracker.id);
+          const count = entries.length;
+          const isMoneyTracker = activeFields(tracker).some((field) => field.type === "money");
+          const moneyField = activeFields(tracker).find((field) => field.type === "money");
+          const totalMoney = isMoneyTracker && moneyField
+            ? entries.reduce((sum, entry) => sum + (Number(entry.data[moneyField.key ?? ""]) || 0), 0)
+            : 0;
+
           return (
             <button className="tile" style={{ "--c": tracker.color } as React.CSSProperties} type="button" key={tracker.id} onClick={() => onOpen(tracker.id)}>
               <div className="tile-header">
@@ -596,7 +601,11 @@ function Home({ trackers, entriesOf, summary, onOpen, onNew, onSignOut }: {
               </div>
               <div className="tile-content">
                 <b>{tracker.name}</b>
-                <small>{count} {count === 1 ? "entry" : "entries"}</small>
+                {isMoneyTracker ? (
+                  <small>₹{formatNumber(totalMoney)} spent</small>
+                ) : (
+                  <small>{count} {count === 1 ? "entry" : "entries"}</small>
+                )}
               </div>
             </button>
           );
@@ -690,7 +699,9 @@ function EntryCard({ tracker, entry, onDelete }: { tracker: Tracker; entry: Entr
 
 function Stats({ tracker, entries }: { tracker: Tracker; entries: Entry[] }) {
   if (!entries.length) return <div className="empty">Stats appear here once you add entries.</div>;
-  const numeric = activeFields(tracker).find((field) => field.type === "money") ?? activeFields(tracker).find((field) => field.type === "number");
+  const moneyField = activeFields(tracker).find((field) => field.type === "money");
+  const numeric = moneyField ?? activeFields(tracker).find((field) => field.type === "number");
+  const isMoneyTracker = Boolean(moneyField);
   const now = new Date();
   const from7 = startOfDay(addDays(now, -6));
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -699,20 +710,7 @@ function Stats({ tracker, entries }: { tracker: Tracker; entries: Entry[] }) {
   const value = (entry: Entry) => numeric ? Number(entry.data[numeric.key ?? ""]) || 0 : 1;
   const sum = (items: Entry[]) => items.reduce((total, entry) => total + value(entry), 0);
   const format = (valueToFormat: number) => numeric ? showValue(numeric, valueToFormat) : formatNumber(valueToFormat);
-  const days = Object.fromEntries(entries.map((entry) => [startOfDay(new Date(entry.at)).getTime(), true]));
-  let cursor = startOfDay(new Date());
-  if (!days[cursor.getTime()]) cursor = addDays(cursor, -1);
-  let streak = 0;
-  while (days[cursor.getTime()]) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
-  const bars = Array.from({ length: 7 }, (_, index) => {
-    const date = addDays(from7, index);
-    return { date, value: sum(entries.filter((entry) => sameDay(new Date(entry.at), date))) };
-  });
-  const max = Math.max(1, ...bars.map((bar) => bar.value));
-  const compact = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
+
   const choice = activeFields(tracker).find((field) => field.type === "choice");
   const breakdown = choice
     ? Object.entries(entries.reduce<Record<string, number>>((memo, entry) => {
@@ -726,29 +724,22 @@ function Stats({ tracker, entries }: { tracker: Tracker; entries: Entry[] }) {
   return (
     <>
       <div className="cards">
-        <div className="stat"><b>{in7.length}</b><span>Entries, last 7 days</span></div>
-        <div className="stat"><b>{inMonth.length}</b><span>Entries this month</span></div>
+        {!isMoneyTracker ? (
+          <>
+            <div className="stat"><b>{in7.length}</b><span>Entries, last 7 days</span></div>
+            <div className="stat"><b>{inMonth.length}</b><span>Entries this month</span></div>
+            <div className="stat"><b>{entries.length}</b><span>Total entries</span></div>
+          </>
+        ) : null}
         {numeric ? (
           <>
             <div className="stat"><b>{format(sum(in7))}</b><span>{numeric.label}, last 7 days</span></div>
             <div className="stat"><b>{format(sum(inMonth))}</b><span>{numeric.label} this month</span></div>
-            <div className="stat"><b>{format(sum(entries) / entries.length)}</b><span>Average {numeric.label.toLowerCase()} per entry</span></div>
+            <div className="stat"><b>{format(sum(entries))}</b><span>Total {numeric.label.toLowerCase()}</span></div>
           </>
         ) : null}
-        <div className="stat"><b>{streak} {streak === 1 ? "day" : "days"}</b><span>Logging streak</span></div>
       </div>
-      <div className="panel">
-        <h3>{numeric ? `${numeric.label} per day` : "Entries per day"}</h3>
-        <div className="chart">
-          {bars.map((bar) => (
-            <div className="col" key={bar.date.toISOString()}>
-              <span className="val">{bar.value ? compact.format(bar.value) : ""}</span>
-              <div className="track"><div className="bar" style={{ height: `${Math.round((bar.value / max) * 100)}%` }} /></div>
-              <span className="dow">{bar.date.toLocaleDateString("en-IN", { weekday: "narrow" })}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+
       {choice && breakdown.length ? (
         <div className="panel">
           <h3>{numeric ? `${numeric.label} by ` : "Entries by "}{choice.label.toLowerCase()}</h3>
