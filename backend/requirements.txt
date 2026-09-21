@@ -1,5 +1,6 @@
 alembic>=1.13.2
 fastapi[standard]>=0.112.0
+fastapi-cli[standard]>=0.0.16
 psycopg[binary]>=3.2.1
 pydantic-settings>=2.4.0
 pydantic>=2.8.2
