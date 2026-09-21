@@ -585,31 +585,16 @@ function Home({ trackers, entriesOf, summary, onOpen, onNew, onSignOut }: {
       ) : null}
 
       <div className="grid">
-        {trackers.map((tracker) => {
-          const entries = entriesOf(tracker.id);
-          const count = entries.length;
-          const isMoneyTracker = activeFields(tracker).some((field) => field.type === "money");
-          const moneyField = activeFields(tracker).find((field) => field.type === "money");
-          const totalMoney = isMoneyTracker && moneyField
-            ? entries.reduce((sum, entry) => sum + (Number(entry.data[moneyField.key ?? ""]) || 0), 0)
-            : 0;
-
-          return (
-            <button className="tile" style={{ "--c": tracker.color } as React.CSSProperties} type="button" key={tracker.id} onClick={() => onOpen(tracker.id)}>
-              <div className="tile-header">
-                <span className="ic">{tracker.icon}</span>
-              </div>
-              <div className="tile-content">
-                <b>{tracker.name}</b>
-                {isMoneyTracker ? (
-                  <small>₹{formatNumber(totalMoney)} spent</small>
-                ) : (
-                  <small>{count} {count === 1 ? "entry" : "entries"}</small>
-                )}
-              </div>
-            </button>
-          );
-        })}
+        {trackers.map((tracker) => (
+          <button className="tile" style={{ "--c": tracker.color } as React.CSSProperties} type="button" key={tracker.id} onClick={() => onOpen(tracker.id)}>
+            <div className="tile-header">
+              <span className="ic">{tracker.icon}</span>
+            </div>
+            <div className="tile-content">
+              <b>{tracker.name}</b>
+            </div>
+          </button>
+        ))}
         <button className="tile new" type="button" onClick={onNew}>
           <span className="plus">+</span>
           <span>New tracker</span>
