@@ -500,21 +500,57 @@ function AuthScreen() {
   };
 
   return (
-    <main className="wrap">
-      <h1>{mode === "sign-in" ? "Welcome back" : "Create your account"}</h1>
-      <p className="sub">Your trackers are private to your account.</p>
-      <form className="auth" onSubmit={submit}>
-        <label className="lab" htmlFor="auth-username">Username</label>
-        <input id="auth-username" type="text" value={username} required minLength={3} maxLength={30} pattern="[a-zA-Z0-9_]+" autoCapitalize="none" autoComplete="username" onChange={(event) => setUsername(event.target.value)} />
-        <label className="lab" htmlFor="auth-password">Password</label>
-        <input id="auth-password" type="password" value={password} required minLength={6} autoComplete={mode === "sign-in" ? "current-password" : "new-password"} onChange={(event) => setPassword(event.target.value)} />
-        {error ? <p className="err" role="alert">{error}</p> : null}
-        <button className="primary" type="submit" disabled={busy}>{busy ? "Please wait..." : mode === "sign-in" ? "Sign in" : "Sign up"}</button>
-      </form>
-      <button className="link" type="button" onClick={() => { setMode(mode === "sign-in" ? "sign-up" : "sign-in"); setError(""); }}>
-        {mode === "sign-in" ? "Need an account? Sign up" : "Already have an account? Sign in"}
-      </button>
-    </main>
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <div className="logo-icon">📊</div>
+          <h2>My Trackers</h2>
+        </div>
+        <h1 className="auth-title">{mode === "sign-in" ? "Welcome back" : "Create an account"}</h1>
+        <p className="auth-sub">{mode === "sign-in" ? "Sign in to access your personal trackers" : "Start tracking habits, finances, and goals"}</p>
+        <form className="auth-form" onSubmit={submit}>
+          <div className="auth-field">
+            <label htmlFor="auth-username">Username</label>
+            <input
+              id="auth-username"
+              type="text"
+              value={username}
+              placeholder="e.g. alex"
+              required
+              minLength={3}
+              maxLength={30}
+              pattern="[a-zA-Z0-9_]+"
+              autoCapitalize="none"
+              autoComplete="username"
+              onChange={(event) => setUsername(event.target.value)}
+            />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="auth-password">Password</label>
+            <input
+              id="auth-password"
+              type="password"
+              value={password}
+              placeholder="••••••••"
+              required
+              minLength={6}
+              autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </div>
+          {error ? <p className="err" role="alert">{error}</p> : null}
+          <button className="primary" type="submit" disabled={busy}>
+            {busy ? "Please wait..." : mode === "sign-in" ? "Sign in" : "Create account"}
+          </button>
+        </form>
+        <div className="auth-switch">
+          <span>{mode === "sign-in" ? "Don't have an account?" : "Already have an account?"}</span>
+          <button className="auth-switch-btn" type="button" onClick={() => { setMode(mode === "sign-in" ? "sign-up" : "sign-in"); setError(""); }}>
+            {mode === "sign-in" ? "Sign up" : "Sign in"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -528,20 +564,40 @@ function Home({ trackers, entriesOf, summary, onOpen, onNew, onSignOut }: {
 }) {
   return (
     <>
-      <h1>My trackers</h1>
-      <p className="sub">{summary}</p>
-      <button className="link" type="button" onClick={onSignOut}>Sign out</button>
-      {!trackers.length ? <div className="empty">No trackers yet. Tap New tracker and describe what you want to record.</div> : null}
+      <nav className="top-nav">
+        <div className="brand-title">
+          <div className="logo">📊</div>
+          <h1>My Trackers</h1>
+        </div>
+        <div className="nav-actions">
+          <button className="link" type="button" onClick={onSignOut}>Sign out</button>
+        </div>
+      </nav>
+
+      <div className="dashboard-header">
+        <div className="summary-info">
+          <h2>Overview</h2>
+          <p>{summary}</p>
+        </div>
+        <button className="ghost" type="button" onClick={onNew}>+ New tracker</button>
+      </div>
+
+      {!trackers.length ? (
+        <div className="empty">No trackers created yet. Click <strong>+ New tracker</strong> to get started.</div>
+      ) : null}
+
       <div className="grid">
         {trackers.map((tracker) => {
           const count = entriesOf(tracker.id).length;
           return (
             <button className="tile" style={{ "--c": tracker.color } as React.CSSProperties} type="button" key={tracker.id} onClick={() => onOpen(tracker.id)}>
-              <span className="ic">{tracker.icon}</span>
-              <span>
+              <div className="tile-header">
+                <span className="ic">{tracker.icon}</span>
+              </div>
+              <div className="tile-content">
                 <b>{tracker.name}</b>
                 <small>{count} {count === 1 ? "entry" : "entries"}</small>
-              </span>
+              </div>
             </button>
           );
         })}
@@ -550,7 +606,7 @@ function Home({ trackers, entriesOf, summary, onOpen, onNew, onSignOut }: {
           <span>New tracker</span>
         </button>
       </div>
-      <p className="foot">Your trackers are saved to the connected database.</p>
+      <p className="foot">Protected by secure authentication & persistent database storage.</p>
     </>
   );
 }
