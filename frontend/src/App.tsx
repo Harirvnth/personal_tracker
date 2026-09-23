@@ -366,7 +366,7 @@ export default function App() {
     <>
       <main className="wrap">
         {view === "home" || !tracker ? (
-          <Home trackers={db.trackers} entriesOf={entriesOf} summary={homeSummary()} onOpen={openTracker} onNew={openBuilder} onSignOut={() => { authToken = ""; localStorage.removeItem(TOKEN_KEY); setSession(false); }} />
+          <Home trackers={db.trackers} entriesOf={entriesOf} onOpen={openTracker} onNew={openBuilder} onSignOut={() => { authToken = ""; localStorage.removeItem(TOKEN_KEY); setSession(false); }} />
         ) : (
           <TrackerPage
             tracker={tracker}
@@ -553,14 +553,55 @@ function AuthScreen() {
   );
 }
 
-function Home({ trackers, entriesOf, summary, onOpen, onNew, onSignOut }: {
+type StatKey = "total_spent" | "total_entries" | "avg_per_entry" | "max_single" | "min_single" | "breakdown" | "streak" | "chart";
+
+const DEFAULT_STATS_CONFIG: Record<StatKey, boolean> = {
+  total_spent: true,
+  total_entries: true,
+  avg_per_entry: false,
+  max_single: false,
+  min_single: false,
+  breakdown: true,
+  streak: false,
+  chart: false,
+};
+
+function Home({ trackers, entriesOf, onOpen, onNew, onSignOut }: {
   trackers: Tracker[];
   entriesOf: (id: string) => Entry[];
-  summary: string;
   onOpen: (id: string) => void;
   onNew: () => void;
   onSignOut: () => void;
 }) {
+  const [rangeMode, setRangeMode] = useState<"today" | "custom">("today");
+  const todayStr = localDateTime(new Date()).slice(0, 10);
+  const [startDate, setStartDate] = useState(todayStr);
+  const [endDate, setEndDate] = useState(todayStr);
+
+  const allEntries = useMemo(() => trackers.flatMap((t) => entriesOf(t.id)), [trackers, entriesOf]);
+
+  const filteredEntries = useMemo(() => {
+    if (rangeMode === "today") {
+      const today = startOfDay(new Date());
+      return allEntries.filter((e) => sameDay(new Date(e.at), today));
+    } else {
+      const start = new Date(`${startDate}T00:00:00`);
+      const end = new Date(`${endDate}T23:59:59`);
+      return allEntries.filter((e) => {
+        const d = new Date(e.at);
+        return d >= start && d <= end;
+      });
+    }
+  }, [allEntries, rangeMode, startDate, endDate]);
+
+  const totalSpent = useMemo(() => {
+    return filteredEntries.reduce((sum, entry) => {
+      const tracker = trackers.find((t) => t.id === entry.trackerId);
+      const moneyField = tracker ? activeFields(tracker).find((f) => f.type === "money") : undefined;
+      return sum + (moneyField ? Number(entry.data[moneyField.key ?? ""]) || 0 : 0);
+    }, 0);
+  }, [filteredEntries, trackers]);
+
   return (
     <>
       <nav className="top-nav">
@@ -576,7 +617,25 @@ function Home({ trackers, entriesOf, summary, onOpen, onNew, onSignOut }: {
       <div className="dashboard-header">
         <div className="summary-info">
           <h2>Overview</h2>
-          <p>{summary}</p>
+          <p>
+            {rangeMode === "today" ? (
+              <><strong>Today's Spent:</strong> ₹{formatNumber(totalSpent)} <small>({filteredEntries.length} {filteredEntries.length === 1 ? "entry" : "entries"} logged today)</small></>
+            ) : (
+              <><strong>Range Spent ({startDate} to {endDate}):</strong> ₹{formatNumber(totalSpent)} <small>({filteredEntries.length} {filteredEntries.length === 1 ? "entry" : "entries"})</small></>
+            )}
+          </p>
+        </div>
+        <div className="overview-filter">
+          <div className="filter-toggle" role="tablist">
+            <button type="button" aria-selected={rangeMode === "today"} onClick={() => setRangeMode("today")}>Today</button>
+            <button type="button" aria-selected={rangeMode === "custom"} onClick={() => setRangeMode("custom")}>Custom Range</button>
+          </div>
+          {rangeMode === "custom" && (
+            <div className="custom-range-inputs">
+              <label>From: <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></label>
+              <label>To: <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+            </div>
+          )}
         </div>
       </div>
 
@@ -683,18 +742,66 @@ function EntryCard({ tracker, entry, onDelete }: { tracker: Tracker; entry: Entr
 }
 
 function Stats({ tracker, entries }: { tracker: Tracker; entries: Entry[] }) {
-  if (!entries.length) return <div className="empty">Stats appear here once you add entries.</div>;
+  const configKey = `my-trackers-stats-config-${tracker.id}`;
+  const [statsConfig, setStatsConfig] = useState<Record<StatKey, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(configKey);
+      return saved ? JSON.parse(saved) : DEFAULT_STATS_CONFIG;
+    } catch {
+      return DEFAULT_STATS_CONFIG;
+    }
+  });
+  const [showConfigModal, setShowConfigModal] = useState(false);
+
+  const saveConfig = (newConfig: Record<StatKey, boolean>) => {
+    setStatsConfig(newConfig);
+    localStorage.setItem(configKey, JSON.stringify(newConfig));
+    setShowConfigModal(false);
+  };
+
+  if (!entries.length) return (
+    <>
+      <div className="stats-header-bar">
+        <h3>Statistics</h3>
+        <button className="ghost" type="button" onClick={() => setShowConfigModal(true)}>⚙️ Customize Stats</button>
+      </div>
+      <div className="empty">Stats appear here once you add entries.</div>
+      {showConfigModal && <CustomizeStatsModal config={statsConfig} onSave={saveConfig} onClose={() => setShowConfigModal(false)} />}
+    </>
+  );
+
   const moneyField = activeFields(tracker).find((field) => field.type === "money");
   const numeric = moneyField ?? activeFields(tracker).find((field) => field.type === "number");
-  const isMoneyTracker = Boolean(moneyField);
   const now = new Date();
   const from7 = startOfDay(addDays(now, -6));
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const in7 = entries.filter((entry) => new Date(entry.at) >= from7);
   const inMonth = entries.filter((entry) => new Date(entry.at) >= monthStart);
+
   const value = (entry: Entry) => numeric ? Number(entry.data[numeric.key ?? ""]) || 0 : 1;
+  const numericValues = entries.map(value).filter((v) => !isNaN(v));
   const sum = (items: Entry[]) => items.reduce((total, entry) => total + value(entry), 0);
   const format = (valueToFormat: number) => numeric ? showValue(numeric, valueToFormat) : formatNumber(valueToFormat);
+
+  const maxVal = numericValues.length ? Math.max(...numericValues) : 0;
+  const minVal = numericValues.length ? Math.min(...numericValues) : 0;
+  const avgVal = numericValues.length ? sum(entries) / entries.length : 0;
+
+  const days = Object.fromEntries(entries.map((entry) => [startOfDay(new Date(entry.at)).getTime(), true]));
+  let cursor = startOfDay(new Date());
+  if (!days[cursor.getTime()]) cursor = addDays(cursor, -1);
+  let streak = 0;
+  while (days[cursor.getTime()]) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  const bars = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(from7, index);
+    return { date, value: sum(entries.filter((entry) => sameDay(new Date(entry.at), date))) };
+  });
+  const maxChartBar = Math.max(1, ...bars.map((bar) => bar.value));
+  const compact = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
 
   const choice = activeFields(tracker).find((field) => field.type === "choice");
   const breakdown = choice
@@ -708,24 +815,56 @@ function Stats({ tracker, entries }: { tracker: Tracker; entries: Entry[] }) {
 
   return (
     <>
+      <div className="stats-header-bar">
+        <h3>Statistics</h3>
+        <button className="ghost" type="button" onClick={() => setShowConfigModal(true)}>⚙️ Customize Stats</button>
+      </div>
+
       <div className="cards">
-        {!isMoneyTracker ? (
+        {statsConfig.total_entries && (
           <>
             <div className="stat"><b>{in7.length}</b><span>Entries, last 7 days</span></div>
             <div className="stat"><b>{inMonth.length}</b><span>Entries this month</span></div>
             <div className="stat"><b>{entries.length}</b><span>Total entries</span></div>
           </>
-        ) : null}
-        {numeric ? (
+        )}
+        {numeric && statsConfig.total_spent && (
           <>
             <div className="stat"><b>{format(sum(in7))}</b><span>{numeric.label}, last 7 days</span></div>
             <div className="stat"><b>{format(sum(inMonth))}</b><span>{numeric.label} this month</span></div>
             <div className="stat"><b>{format(sum(entries))}</b><span>Total {numeric.label.toLowerCase()}</span></div>
           </>
-        ) : null}
+        )}
+        {numeric && statsConfig.avg_per_entry && (
+          <div className="stat"><b>{format(avgVal)}</b><span>Average {numeric.label.toLowerCase()} per entry</span></div>
+        )}
+        {numeric && statsConfig.max_single && (
+          <div className="stat"><b>{format(maxVal)}</b><span>Highest single {numeric.label.toLowerCase()}</span></div>
+        )}
+        {numeric && statsConfig.min_single && (
+          <div className="stat"><b>{format(minVal)}</b><span>Lowest single {numeric.label.toLowerCase()}</span></div>
+        )}
+        {statsConfig.streak && (
+          <div className="stat"><b>{streak} {streak === 1 ? "day" : "days"}</b><span>Logging streak</span></div>
+        )}
       </div>
 
-      {choice && breakdown.length ? (
+      {statsConfig.chart && (
+        <div className="panel">
+          <h3>{numeric ? `${numeric.label} per day` : "Entries per day"}</h3>
+          <div className="chart">
+            {bars.map((bar) => (
+              <div className="col" key={bar.date.toISOString()}>
+                <span className="val">{bar.value ? compact.format(bar.value) : ""}</span>
+                <div className="track"><div className="bar" style={{ height: `${Math.round((bar.value / maxChartBar) * 100)}%` }} /></div>
+                <span className="dow">{bar.date.toLocaleDateString("en-IN", { weekday: "narrow" })}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {statsConfig.breakdown && choice && breakdown.length ? (
         <div className="panel">
           <h3>{numeric ? `${numeric.label} by ` : "Entries by "}{choice.label.toLowerCase()}</h3>
           {breakdown.map(([label, itemValue]) => (
@@ -737,7 +876,66 @@ function Stats({ tracker, entries }: { tracker: Tracker; entries: Entry[] }) {
           ))}
         </div>
       ) : null}
+
+      {showConfigModal && <CustomizeStatsModal config={statsConfig} onSave={saveConfig} onClose={() => setShowConfigModal(false)} />}
     </>
+  );
+}
+
+function CustomizeStatsModal({ config, onSave, onClose }: {
+  config: Record<StatKey, boolean>;
+  onSave: (newConfig: Record<StatKey, boolean>) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState({ ...config });
+
+  const toggle = (key: StatKey) => setDraft((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  return (
+    <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" role="dialog" aria-modal="true">
+        <div className="shead">
+          <h2>⚙️ Customize Stats Display</h2>
+          <button className="ghost" type="button" onClick={onClose}>Close</button>
+        </div>
+        <p className="sub">Select which metrics you want displayed on this tracker:</p>
+        <div className="config-checklist">
+          <label className="config-item">
+            <input type="checkbox" checked={draft.total_spent} onChange={() => toggle("total_spent")} />
+            <span>Total Spent / Amount Cards</span>
+          </label>
+          <label className="config-item">
+            <input type="checkbox" checked={draft.total_entries} onChange={() => toggle("total_entries")} />
+            <span>Total Entry Count Cards</span>
+          </label>
+          <label className="config-item">
+            <input type="checkbox" checked={draft.avg_per_entry} onChange={() => toggle("avg_per_entry")} />
+            <span>Average Amount Per Entry</span>
+          </label>
+          <label className="config-item">
+            <input type="checkbox" checked={draft.max_single} onChange={() => toggle("max_single")} />
+            <span>Highest Single Entry Value</span>
+          </label>
+          <label className="config-item">
+            <input type="checkbox" checked={draft.min_single} onChange={() => toggle("min_single")} />
+            <span>Lowest Single Entry Value</span>
+          </label>
+          <label className="config-item">
+            <input type="checkbox" checked={draft.breakdown} onChange={() => toggle("breakdown")} />
+            <span>Category / Choice Breakdown</span>
+          </label>
+          <label className="config-item">
+            <input type="checkbox" checked={draft.streak} onChange={() => toggle("streak")} />
+            <span>Logging Streak</span>
+          </label>
+          <label className="config-item">
+            <input type="checkbox" checked={draft.chart} onChange={() => toggle("chart")} />
+            <span>Daily Trend Bar Chart</span>
+          </label>
+        </div>
+        <button className="primary" type="button" onClick={() => onSave(draft)}>Save Preferences</button>
+      </div>
+    </div>
   );
 }
 
