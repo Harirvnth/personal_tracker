@@ -195,6 +195,7 @@ export default function App() {
   const [loadError, setLoadError] = useState("");
   const [session, setSession] = useState(Boolean(authToken));
   const [view, setView] = useState<View>("home");
+  const [dashboardSection, setDashboardSection] = useState<"trackers" | "todos">("trackers");
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("entries");
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -362,11 +363,21 @@ export default function App() {
   if (loading) return <main className="wrap"><div className="empty">Loading your trackers...</div></main>;
   if (loadError) return <main className="wrap"><div className="empty">{loadError}</div></main>;
 
+  const handleSignOut = () => {
+    authToken = "";
+    localStorage.removeItem(TOKEN_KEY);
+    setSession(false);
+  };
+
   return (
     <>
       <main className="wrap">
         {view === "home" || !tracker ? (
-          <Home trackers={db.trackers} entriesOf={entriesOf} onOpen={openTracker} onNew={openBuilder} onSignOut={() => { authToken = ""; localStorage.removeItem(TOKEN_KEY); setSession(false); }} />
+          dashboardSection === "trackers" ? (
+            <Home trackers={db.trackers} entriesOf={entriesOf} onOpen={openTracker} onNew={openBuilder} onSignOut={handleSignOut} />
+          ) : (
+            <TodoList onSignOut={handleSignOut} />
+          )
         ) : (
           <TrackerPage
             tracker={tracker}
@@ -420,6 +431,29 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <nav className="bottom-nav-bar" aria-label="Dashboard Section Navigation">
+        <div className="bottom-nav-inner">
+          <button
+            type="button"
+            className="bottom-nav-item"
+            aria-selected={view === "home" && dashboardSection === "trackers"}
+            onClick={() => { setView("home"); setCurrentId(null); setDashboardSection("trackers"); }}
+          >
+            <span className="nav-icon">📊</span>
+            <span>Trackers</span>
+          </button>
+          <button
+            type="button"
+            className="bottom-nav-item"
+            aria-selected={view === "home" && dashboardSection === "todos"}
+            onClick={() => { setView("home"); setCurrentId(null); setDashboardSection("todos"); }}
+          >
+            <span className="nav-icon">✅</span>
+            <span>To-Do List</span>
+          </button>
+        </div>
+      </nav>
 
       {sheet && (
         <div className="backdrop" onMouseDown={(event) => event.target === event.currentTarget && setSheet(null)}>
@@ -697,7 +731,7 @@ function EntriesList({ tracker, entries, onDelete }: { tracker: Tracker; entries
   if (!entries.length) return <div className="empty">No entries yet. Tap Add entry to log your first one.</div>;
   let last = "";
   return (
-    <>
+    <div className="entries-compact-list">
       {entries.map((entry) => {
         const label = dayLabel(new Date(entry.at));
         const showDay = label !== last;
@@ -709,7 +743,7 @@ function EntriesList({ tracker, entries, onDelete }: { tracker: Tracker; entries
           </div>
         );
       })}
-    </>
+    </div>
   );
 }
 
@@ -720,7 +754,7 @@ function EntryCard({ tracker, entry, onDelete }: { tracker: Tracker; entry: Entr
   const others = fields.filter((field) => field !== title && field !== highlight);
   const titleValue = title && hasValue(entry.data[title.key ?? ""]) ? String(entry.data[title.key ?? ""]) : "Entry";
   return (
-    <div className="entry">
+    <div className="entry compact">
       <div className="row">
         <span className="ttl">{titleValue}</span>
         {highlight && highlight !== title && hasValue(entry.data[highlight.key ?? ""]) ? <span className="hi">{showValue(highlight, entry.data[highlight.key ?? ""])}</span> : null}
@@ -737,6 +771,150 @@ function EntryCard({ tracker, entry, onDelete }: { tracker: Tracker; entry: Entr
         <span>{new Date(entry.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</span>
         <button type="button" onClick={onDelete}>Delete</button>
       </div>
+    </div>
+  );
+}
+
+type TodoItem = {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: string;
+};
+
+function TodoList({ onSignOut }: { onSignOut: () => void }) {
+  const [todos, setTodos] = useState<TodoItem[]>(() => {
+    try {
+      const saved = localStorage.getItem("my-trackers-todos-list");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [input, setInput] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+
+  useEffect(() => {
+    localStorage.setItem("my-trackers-todos-list", JSON.stringify(todos));
+  }, [todos]);
+
+  const addTodo = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    const newItem: TodoItem = {
+      id: String(Date.now()),
+      text: input.trim(),
+      completed: false,
+      createdAt: new Date().toISOString()
+    };
+    setTodos([newItem, ...todos]);
+    setInput("");
+  };
+
+  const toggleTodo = (id: string) => {
+    setTodos(todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  };
+
+  const deleteTodo = (id: string) => {
+    setTodos(todos.filter((t) => t.id !== id));
+  };
+
+  const startEdit = (todo: TodoItem) => {
+    setEditingId(todo.id);
+    setEditText(todo.text);
+  };
+
+  const saveEdit = (id: string) => {
+    if (editText.trim()) {
+      setTodos(todos.map((t) => (t.id === id ? { ...t, text: editText.trim() } : t)));
+    }
+    setEditingId(null);
+  };
+
+  const filteredTodos = todos.filter((t) => {
+    if (filter === "active") return !t.completed;
+    if (filter === "completed") return t.completed;
+    return true;
+  });
+
+  const activeCount = todos.filter((t) => !t.completed).length;
+
+  return (
+    <div className="todo-container">
+      <nav className="top-nav">
+        <div className="brand-title">
+          <div className="logo">✅</div>
+          <h1>To-Do List</h1>
+        </div>
+        <div className="nav-actions">
+          <button className="link" type="button" onClick={onSignOut}>Sign out</button>
+        </div>
+      </nav>
+
+      <div className="todo-header">
+        <div>
+          <h2>My Tasks</h2>
+          <p>{activeCount} task{activeCount === 1 ? "" : "s"} remaining</p>
+        </div>
+        <div className="filter-toggle">
+          <button type="button" aria-selected={filter === "all"} onClick={() => setFilter("all")}>All</button>
+          <button type="button" aria-selected={filter === "active"} onClick={() => setFilter("active")}>Active</button>
+          <button type="button" aria-selected={filter === "completed"} onClick={() => setFilter("completed")}>Completed</button>
+        </div>
+      </div>
+
+      <form className="todo-form" onSubmit={addTodo}>
+        <input
+          type="text"
+          value={input}
+          placeholder="Add a new task (e.g. Buy groceries, Review PR)..."
+          onChange={(e) => setInput(e.target.value)}
+        />
+        <button className="primary" type="submit" style={{ width: "auto", margin: 0, padding: "10px 18px" }}>Add Task</button>
+      </form>
+
+      {!filteredTodos.length ? (
+        <div className="empty">No tasks found. Add a task above to keep track of your work!</div>
+      ) : (
+        <div className="todo-list">
+          {filteredTodos.map((todo) => (
+            <div className={`todo-item ${todo.completed ? "completed" : ""}`} key={todo.id}>
+              <div className="todo-left">
+                <input
+                  type="checkbox"
+                  className="todo-checkbox"
+                  checked={todo.completed}
+                  onChange={() => toggleTodo(todo.id)}
+                />
+                {editingId === todo.id ? (
+                  <input
+                    type="text"
+                    className="todo-edit-input"
+                    value={editText}
+                    autoFocus
+                    onChange={(e) => setEditText(e.target.value)}
+                    onBlur={() => saveEdit(todo.id)}
+                    onKeyDown={(e) => e.key === "Enter" && saveEdit(todo.id)}
+                  />
+                ) : (
+                  <span className="todo-text" onDoubleClick={() => startEdit(todo)}>{todo.text}</span>
+                )}
+              </div>
+              <div className="todo-actions">
+                {editingId === todo.id ? (
+                  <button type="button" onClick={() => saveEdit(todo.id)}>Save</button>
+                ) : (
+                  <button type="button" onClick={() => startEdit(todo)}>Edit</button>
+                )}
+                <button type="button" className="del" onClick={() => deleteTodo(todo.id)}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

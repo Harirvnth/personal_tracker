@@ -858,8 +858,8 @@ select {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
-  padding: 0 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  bottom: 64px;
+  padding: 0 20px calc(12px + env(safe-area-inset-bottom, 0px));
   pointer-events: none;
   z-index: 10;
 }
@@ -895,6 +895,248 @@ select {
 .fab .p {
   font-size: 20px;
   line-height: 1;
+}
+
+/* Bottom Navigation Bar */
+.bottom-nav-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+  z-index: 50;
+  padding: 6px 16px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+
+.bottom-nav-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.bottom-nav-item {
+  flex: 1;
+  max-width: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.bottom-nav-item .nav-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bottom-nav-item[aria-selected="true"] {
+  color: var(--brand);
+  background: var(--brand-light);
+}
+
+.bottom-nav-item:hover:not([aria-selected="true"]) {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+/* To-Do List System */
+.todo-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.todo-header {
+  background: var(--surface-subtle);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.todo-header h2 {
+  font-family: var(--head);
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+
+.todo-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.todo-form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.todo-form input {
+  flex: 1;
+}
+
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.todo-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+}
+
+.todo-item:hover {
+  border-color: #cbd5e1;
+}
+
+.todo-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--brand);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.todo-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todo-item.completed .todo-text {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.todo-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.todo-actions button {
+  background: none;
+  border: 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.todo-actions button:hover {
+  background: var(--surface-hover);
+  color: var(--ink);
+}
+
+.todo-actions button.del:hover {
+  color: var(--danger);
+  background: var(--danger-light);
+}
+
+.todo-edit-input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 14px;
+}
+
+/* Compact History Section */
+.entries-compact-list {
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.entries-compact-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.entries-compact-list::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+
+.entry.compact {
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.entry.compact .row {
+  gap: 8px;
+}
+
+.entry.compact .ttl {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.entry.compact .hi {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.entry.compact .pills {
+  margin-top: 4px;
+  gap: 4px;
+}
+
+.entry.compact .pill {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.entry.compact .note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
+.entry.compact .meta {
+  margin-top: 6px;
+  padding-top: 6px;
+  font-size: 11px;
 }
 
 /* Modal Dialog / Sheet */
