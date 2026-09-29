@@ -61,6 +61,14 @@ type EntryDraft = {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1";
 const TOKEN_KEY = "my-trackers-token";
 let authToken = localStorage.getItem(TOKEN_KEY) ?? "";
+
+class ApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 const TYPES: Array<[FieldType, string]> = [
   ["text", "Short text"],
   ["longtext", "Long note"],
@@ -148,7 +156,7 @@ async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || `Request failed (${response.status})`);
+    throw new ApiError(response.status, detail || `Request failed (${response.status})`);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -212,7 +220,15 @@ export default function App() {
     setLoadError("");
     loadRemoteDb()
       .then(setDb)
-      .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : "Could not load your trackers."))
+      .catch((error: unknown) => {
+        if (error instanceof ApiError && error.status === 401) {
+          authToken = "";
+          localStorage.removeItem(TOKEN_KEY);
+          setSession(false);
+          return;
+        }
+        setLoadError(error instanceof Error ? error.message : "Could not load your trackers.");
+      })
       .finally(() => setLoading(false));
   }, [session]);
 
